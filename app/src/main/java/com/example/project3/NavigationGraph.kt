@@ -27,13 +27,9 @@ fun NavigationGraph(
             onBottomBarVisibilityChanged(true)
             SignUpScreen(navController = navController)
         }
-//        composable(BottomNavigationItems.QuizScreen.route) {
-//            onBottomBarVisibilityChanged(true)
-//            GameScreen(navController = navController)
-//        }
-//        composable(BottomNavigationItems.QuestionsScreen.route) {
-//            onBottomBarVisibilityChanged(true)
-//            GameScreen2(navController = navController)
-//        }
+        composable(BottomNavigationItems.GameScreen.route) {
+            onBottomBarVisibilityChanged(true)
+            GameScreen(navController = navController)
+        }
     }
 }
