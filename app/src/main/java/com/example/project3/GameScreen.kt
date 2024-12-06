@@ -6,8 +6,10 @@ import android.media.MediaPlayer
 import android.util.Log
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.draganddrop.dragAndDropSource
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
@@ -22,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -41,14 +44,21 @@ import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.draganddrop.DragAndDropTransferData
 import androidx.compose.ui.draganddrop.mimeTypes
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 
@@ -56,7 +66,6 @@ import androidx.navigation.compose.rememberNavController
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GameScreen(navController: NavController, modifier: Modifier = Modifier) {
-
     val backgroundImage: Painter = painterResource(id = R.drawable.menu_bg)
     val icon = painterResource(id = R.drawable.red_robot)
 
@@ -68,19 +77,57 @@ fun GameScreen(navController: NavController, modifier: Modifier = Modifier) {
     )
 
     val arrowNames = listOf("Up", "Down", "Forward", "Back")
-    var arrowSequence = remember { mutableStateListOf<Int?>(null, null, null, null) }
+    val arrowSequence = remember { mutableStateListOf<Int?>(null, null, null, null) }
     var draggingArrowIndex by remember { mutableStateOf<Int?>(null) }
 
     var animationStarted by remember { mutableStateOf(false) }
-    var dropPosition by remember { mutableStateOf(Offset(20f, 155f)) }
+    var dropPosition by remember { mutableStateOf(Offset(1f, 160f)) }
     val horizontalMovement = remember { Animatable(dropPosition.x) }
     val verticalMovement = remember { Animatable(dropPosition.y) }
 
-    var context = LocalContext.current
+    val context = LocalContext.current
     val isPreview = LocalInspectionMode.current // Check if in preview mode
 
     var mediaPlayerBackground: MediaPlayer? by remember { mutableStateOf(null) }
     var mediaPlayerMove: MediaPlayer? by remember { mutableStateOf(null) }
+
+    // Get the screen width using LocalConfiguration
+    val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+    val cols = 10
+    val rows = 10
+    val gridSizeDp = screenWidth / cols // Calculate grid size dynamically based on screen width
+
+    val path = remember {
+        listOf(
+            Pair(2, 0),
+            Pair(2, 2),
+            Pair(2, 3),
+            Pair(2, 1),
+            Pair(2, 2),
+            Pair(2, 3),
+            Pair(3, 2),
+            Pair(3, 2),
+            Pair(4, 6),
+            Pair(5, 7),
+            Pair(6, 8),
+            Pair(9, 9),// Destination
+        )
+    }
+
+    val destination = path.last()
+    var isGameWon by remember { mutableStateOf(false) }
+
+    // Check for win condition
+    fun checkWinCondition() {
+        val currentPosition = Pair(
+            (dropPosition.y / gridSizeDp.value).toInt(),
+            (dropPosition.x / gridSizeDp.value).toInt()
+        )
+
+        if (currentPosition == destination) {
+            isGameWon = true
+        }
+    }
 
     if (!isPreview) {
         DisposableEffect(Unit) {
@@ -160,7 +207,10 @@ fun GameScreen(navController: NavController, modifier: Modifier = Modifier) {
                                     onLongPress = { offset ->
                                         startTransfer(
                                             transferData = DragAndDropTransferData(
-                                                clipData = ClipData.newPlainText("arrow", arrowNames[index])
+                                                clipData = ClipData.newPlainText(
+                                                    "arrow",
+                                                    arrowNames[index]
+                                                )
                                             )
                                         )
                                         draggingArrowIndex = index
@@ -195,10 +245,12 @@ fun GameScreen(navController: NavController, modifier: Modifier = Modifier) {
             }
         }
 
-
-        Row (modifier = Modifier.fillMaxWidth()
-            .padding(2.dp),
-            horizontalArrangement = Arrangement.SpaceAround){
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(2.dp),
+            horizontalArrangement = Arrangement.SpaceAround
+        ) {
             Button(
                 onClick = {
                     arrowSequence.clear()
@@ -233,6 +285,9 @@ fun GameScreen(navController: NavController, modifier: Modifier = Modifier) {
             }
         }
 
+        val density = LocalDensity.current.density // Get the device density
+        val gridSizePx = gridSizeDp.value * density // Convert grid size from dp to px
+
         LaunchedEffect(animationStarted) {
             if (animationStarted) {
                 var newPosition = dropPosition
@@ -245,16 +300,35 @@ fun GameScreen(navController: NavController, modifier: Modifier = Modifier) {
                             mediaPlayerMove?.start()
                             when (arrow) {
                                 R.drawable.baseline_arrow_forward_24 -> {
-                                    newPosition = newPosition.copy(x = newPosition.x + 50f)
+                                    // Move right by one tile
+                                    val newX = newPosition.x + gridSizePx
+                                    newPosition = Offset(
+                                        newX,
+                                        newPosition.y
+                                    )  // Move exactly one tile to the right
                                 }
+
                                 R.drawable.baseline_arrow_back_24 -> {
-                                    newPosition = newPosition.copy(x = newPosition.x - 50f)
+                                    // Move left by one tile
+                                    val newX = newPosition.x - gridSizePx
+                                    newPosition = Offset(
+                                        newX,
+                                        newPosition.y
+                                    )  // Move exactly one tile to the left
                                 }
+
                                 R.drawable.baseline_arrow_upward_24 -> {
-                                    newPosition = newPosition.copy(y = newPosition.y - 50f)
+                                    // Move up by one tile
+                                    val newY = newPosition.y - gridSizePx
+                                    newPosition =
+                                        Offset(newPosition.x, newY)  // Move exactly one tile up
                                 }
+
                                 R.drawable.baseline_arrow_downward_24 -> {
-                                    newPosition = newPosition.copy(y = newPosition.y + 50f)
+                                    // Move down by one tile
+                                    val newY = newPosition.y + gridSizePx
+                                    newPosition =
+                                        Offset(newPosition.x, newY)  // Move exactly one tile down
                                 }
                             }
 
@@ -265,6 +339,7 @@ fun GameScreen(navController: NavController, modifier: Modifier = Modifier) {
                     }
                 }
                 dropPosition = newPosition
+                checkWinCondition()
             }
             animationStarted = false
         }
@@ -280,14 +355,90 @@ fun GameScreen(navController: NavController, modifier: Modifier = Modifier) {
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
+
+
+            // Canvas for drawing grid and path
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                // Draw the horizontal grid lines
+                for (row in 0 until rows + 1) {  // +1 to draw the last line at the bottom
+                    drawLine(
+                        color = Color.Black.copy(alpha = 0.8f),  // Line color
+                        start = Offset(0f, row * gridSizeDp.toPx()),  // Start point (left to right)
+                        end = Offset(
+                            size.width,
+                            row * gridSizeDp.toPx()
+                        ),  // End point (left to right)
+                        strokeWidth = 5f  // Line thickness
+                    )
+                }
+
+                // Draw the vertical grid lines
+                for (col in 0 until cols + 1) {
+                    drawLine(
+                        color = Color.Black.copy(alpha = 0.8f),  // Line color
+                        start = Offset(col * gridSizeDp.toPx(), 0f),  // Start point (top to bottom)
+                        end = Offset(
+                            col * gridSizeDp.toPx(),
+                            size.height
+                        ),  // End point (top to bottom)
+                        strokeWidth = 5f  // Line thickness
+                    )
+                }
+
+                // Draw the path tiles in white
+                path.forEach { (row, col) ->
+                    drawRect(
+                        color = Color.White,
+                        size = Size(gridSizeDp.toPx(), gridSizeDp.toPx()),
+                        topLeft = Offset(col * gridSizeDp.toPx(), row * gridSizeDp.toPx())
+                    )
+                }
+
+                // Draw the destination point (green)
+                drawRect(
+                    color = Color.Green,
+                    size = Size(gridSizeDp.toPx(), gridSizeDp.toPx()),
+                    topLeft = Offset(
+                        destination.second * gridSizeDp.toPx(),
+                        destination.first * gridSizeDp.toPx()
+                    )
+                )
+                Log.d(
+                    "DestinationPosition",
+                    "Destination tile at: ${destination.second * gridSizeDp.toPx()}, ${destination.first * gridSizeDp.toPx()}"
+                )
+
+            }
             Image(
                 painter = icon,
                 contentDescription = "robot",
                 modifier = Modifier
-                    .size(45.dp)
+                    .size(60.dp)
                     .padding(10.dp)
-                    .offset(horizontalMovement.value.dp, verticalMovement.value.dp)
+                    .offset {
+                        IntOffset(horizontalMovement.value.toInt(), verticalMovement.value.toInt())
+                    }
             )
+
+            // Display win message if player reaches the destination
+            if (isGameWon) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .wrapContentSize(Alignment.Center)
+                ) {
+                    Text(
+                        text = "You Win!",
+                        color = Color.White,
+                        style = TextStyle(
+                            fontSize = 32.sp, // Adjust the font size
+                            fontWeight = FontWeight.Bold, // Optionally make it bold
+                            letterSpacing = 2.sp // Adjust letter spacing
+                        )
+                    )
+                }
+            }
         }
     }
 }
