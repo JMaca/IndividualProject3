@@ -81,7 +81,7 @@ fun GameScreen(navController: NavController, modifier: Modifier = Modifier) {
     var draggingArrowIndex by remember { mutableStateOf<Int?>(null) }
 
     var animationStarted by remember { mutableStateOf(false) }
-    var dropPosition by remember { mutableStateOf(Offset(1f, 160f)) }
+    var dropPosition by remember { mutableStateOf(Offset(1f, 430f)) }
     val horizontalMovement = remember { Animatable(dropPosition.x) }
     val verticalMovement = remember { Animatable(dropPosition.y) }
 
@@ -94,23 +94,25 @@ fun GameScreen(navController: NavController, modifier: Modifier = Modifier) {
     // Get the screen width using LocalConfiguration
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val cols = 10
-    val rows = 10
+    val rows = 6
     val gridSizeDp = screenWidth / cols // Calculate grid size dynamically based on screen width
 
     val path = remember {
         listOf(
             Pair(2, 0),
-            Pair(2, 2),
-            Pair(2, 3),
             Pair(2, 1),
             Pair(2, 2),
             Pair(2, 3),
-            Pair(3, 2),
+            Pair(2, 4),
+            Pair(2, 5),
+            Pair(2, 6),
+            Pair(3, 6),
             Pair(3, 2),
             Pair(4, 6),
-            Pair(5, 7),
-            Pair(6, 8),
-            Pair(9, 9),// Destination
+            Pair(4, 7),
+            Pair(4, 8),
+            Pair(4, 9),
+            Pair(5, 9),// Destination
         )
     }
 
@@ -413,7 +415,7 @@ fun GameScreen(navController: NavController, modifier: Modifier = Modifier) {
                 painter = icon,
                 contentDescription = "robot",
                 modifier = Modifier
-                    .size(60.dp)
+                    .size(80.dp)
                     .padding(10.dp)
                     .offset {
                         IntOffset(horizontalMovement.value.toInt(), verticalMovement.value.toInt())
