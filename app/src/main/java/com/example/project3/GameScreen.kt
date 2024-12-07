@@ -48,7 +48,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
@@ -69,57 +68,63 @@ fun GameScreen(navController: NavController, modifier: Modifier = Modifier) {
     val backgroundImage: Painter = painterResource(id = R.drawable.menu_bg)
     val icon = painterResource(id = R.drawable.red_robot)
 
+    val gridSizeDp = 80.dp
+    val cols = 8
+    val rows = 4
+
+    val density = LocalDensity.current.density // Get the device density
+    val gridSizePx = gridSizeDp.value * density // Convert grid size from dp to px
+
+    //Path to finish game row,column
+    val path = remember {
+        listOf(
+            Pair(1, 0),
+            Pair(1, 1),
+            Pair(1, 2),
+            Pair(1, 3),
+            Pair(1, 4),
+            Pair(1, 5),
+            Pair(1, 3),
+            Pair(2, 5),
+            Pair(2, 6),
+            Pair(2, 7),
+            Pair(2, 8),
+            Pair(1, 8), // Destination
+        )
+    }
+
+    //starting robot position for screen sizes and movement/destination
+    val firstTile = path.first() // Get the first tile in the path
+    val firstTileRow = firstTile.first // Row of the first white tile
+    val firstTileCol = firstTile.second // Column of the first white tile
+    var dropPosition by remember {mutableStateOf(Offset(firstTileCol * gridSizePx, firstTileRow * gridSizePx)) }
+    val destination = path.last()
+    val horizontalMovement = remember { Animatable(dropPosition.x) }
+    val verticalMovement = remember { Animatable(dropPosition.y) }
+
+    //Arrows used to sequence movement
     val arrows = listOf(
         R.drawable.baseline_arrow_upward_24,
         R.drawable.baseline_arrow_downward_24,
         R.drawable.baseline_arrow_forward_24,
         R.drawable.baseline_arrow_back_24
     )
-
     val arrowNames = listOf("Up", "Down", "Forward", "Back")
     val arrowSequence = remember { mutableStateListOf<Int?>(null, null, null, null) }
     var draggingArrowIndex by remember { mutableStateOf<Int?>(null) }
 
+    //Trigger animation on button execute boolean
     var animationStarted by remember { mutableStateOf(false) }
-    var dropPosition by remember { mutableStateOf(Offset(1f, 430f)) }
-    val horizontalMovement = remember { Animatable(dropPosition.x) }
-    val verticalMovement = remember { Animatable(dropPosition.y) }
 
+    //Media playback
     val context = LocalContext.current
     val isPreview = LocalInspectionMode.current // Check if in preview mode
-
     var mediaPlayerBackground: MediaPlayer? by remember { mutableStateOf(null) }
     var mediaPlayerMove: MediaPlayer? by remember { mutableStateOf(null) }
+    var isMuted by remember { mutableStateOf(false) }
 
-    // Get the screen width using LocalConfiguration
-    val screenWidth = LocalConfiguration.current.screenWidthDp.dp
-    val cols = 10
-    val rows = 6
-    val gridSizeDp = screenWidth / cols // Calculate grid size dynamically based on screen width
-
-    val path = remember {
-        listOf(
-            Pair(2, 0),
-            Pair(2, 1),
-            Pair(2, 2),
-            Pair(2, 3),
-            Pair(2, 4),
-            Pair(2, 5),
-            Pair(2, 6),
-            Pair(3, 6),
-            Pair(3, 2),
-            Pair(4, 6),
-            Pair(4, 7),
-            Pair(4, 8),
-            Pair(4, 9),
-            Pair(5, 9),// Destination
-        )
-    }
-
-    val destination = path.last()
+    //Winning condition
     var isGameWon by remember { mutableStateOf(false) }
-
-    // Check for win condition
     fun checkWinCondition() {
         val currentPosition = Pair(
             (dropPosition.y / gridSizeDp.value).toInt(),
@@ -131,13 +136,15 @@ fun GameScreen(navController: NavController, modifier: Modifier = Modifier) {
         }
     }
 
+    //for preview rendering issue avoidance
     if (!isPreview) {
+        //Activate media on screen load
         DisposableEffect(Unit) {
             mediaPlayerBackground = MediaPlayer.create(context, R.raw.night_club)
             mediaPlayerBackground?.start()
             mediaPlayerBackground?.isLooping = true
             mediaPlayerMove = MediaPlayer.create(context, R.raw.rolling)
-
+            //close resource on exit/back out
             onDispose {
                 mediaPlayerBackground?.release()
                 mediaPlayerMove?.release()
@@ -145,17 +152,30 @@ fun GameScreen(navController: NavController, modifier: Modifier = Modifier) {
         }
     }
 
+    fun toggleMute() {
+        isMuted = !isMuted
+        if (isMuted) {
+            mediaPlayerBackground?.pause()
+            mediaPlayerMove?.pause()
+        } else {
+            mediaPlayerBackground?.start()
+            mediaPlayerBackground?.isLooping = true
+        }
+    }
+
+
+    // Header for drag and drop boxes and arrow control
     Column(modifier = Modifier) {
         Row(
             modifier = modifier
                 .fillMaxWidth()
-                .weight(0.15f)
+                .weight(0.12f)
         ) {
             val boxCount = 4
             repeat(boxCount) { index ->
                 Box(
                     modifier = Modifier
-                        .weight(.2f)
+                        .weight(.19f)
                         .fillMaxHeight()
                         .padding(2.dp)
                         .border(1.dp, Color.Blue)
@@ -196,8 +216,8 @@ fun GameScreen(navController: NavController, modifier: Modifier = Modifier) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(2.dp)
-                    .weight(.8f)
+                    .padding(1.dp)
+                    .weight(.9f)
             ) {
                 arrows.forEachIndexed { index, arrowId ->
                     Box(
@@ -246,7 +266,7 @@ fun GameScreen(navController: NavController, modifier: Modifier = Modifier) {
                 }
             }
         }
-
+        // Buttons row
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -260,13 +280,26 @@ fun GameScreen(navController: NavController, modifier: Modifier = Modifier) {
                     animationStarted = false
                 },
                 modifier = Modifier
-                    .padding(2.dp),
+                    .size(200.dp, 35.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color.Red, // Background color of button
                     contentColor = Color.Black // Color of the text/icon
                 )
             ) {
                 Text("Reset sequence")
+            }
+
+            // Mute button in the header row
+            Button(
+                onClick = { toggleMute() },
+                modifier = Modifier
+                    .size(150.dp, 35.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isMuted) Color.Magenta else Color.Yellow,
+                    contentColor = Color.Black
+                )
+            ) {
+                Text(if (isMuted) "Unmute" else "Mute Sound")
             }
             // Trigger the animation on button press
             Button(
@@ -277,19 +310,17 @@ fun GameScreen(navController: NavController, modifier: Modifier = Modifier) {
                     }
                 },
                 modifier = Modifier
-                    .padding(2.dp),
+                    .size(200.dp, 35.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color.Green, // Background color of button
                     contentColor = Color.Black // Color of the text/icon
                 )
             ) {
-                Text("Start Animation")
+                Text("Excecute Sequence")
             }
         }
 
-        val density = LocalDensity.current.density // Get the device density
-        val gridSizePx = gridSizeDp.value * density // Convert grid size from dp to px
-
+        //Animation for robot
         LaunchedEffect(animationStarted) {
             if (animationStarted) {
                 var newPosition = dropPosition
@@ -361,29 +392,23 @@ fun GameScreen(navController: NavController, modifier: Modifier = Modifier) {
 
             // Canvas for drawing grid and path
             Canvas(modifier = Modifier.fillMaxSize()) {
-                // Draw the horizontal grid lines
+                // Draw horizontal grid lines for an 8x8 grid
                 for (row in 0 until rows + 1) {  // +1 to draw the last line at the bottom
                     drawLine(
-                        color = Color.Black.copy(alpha = 0.8f),  // Line color
-                        start = Offset(0f, row * gridSizeDp.toPx()),  // Start point (left to right)
-                        end = Offset(
-                            size.width,
-                            row * gridSizeDp.toPx()
-                        ),  // End point (left to right)
-                        strokeWidth = 5f  // Line thickness
+                        color = Color.Black.copy(alpha = 0.8f),
+                        start = Offset(0f, row * gridSizeDp.toPx()),
+                        end = Offset(size.width, row * gridSizeDp.toPx()),
+                        strokeWidth = 5f
                     )
                 }
 
-                // Draw the vertical grid lines
-                for (col in 0 until cols + 1) {
+                // Draw vertical grid lines for an 8x8 grid
+                for (col in 0 until cols + 1) {  // +1 to draw the last line at the right
                     drawLine(
-                        color = Color.Black.copy(alpha = 0.8f),  // Line color
-                        start = Offset(col * gridSizeDp.toPx(), 0f),  // Start point (top to bottom)
-                        end = Offset(
-                            col * gridSizeDp.toPx(),
-                            size.height
-                        ),  // End point (top to bottom)
-                        strokeWidth = 5f  // Line thickness
+                        color = Color.Black.copy(alpha = 0.8f),
+                        start = Offset(col * gridSizeDp.toPx(), 0f),
+                        end = Offset(col * gridSizeDp.toPx(), size.height),
+                        strokeWidth = 5f
                     )
                 }
 
@@ -405,11 +430,6 @@ fun GameScreen(navController: NavController, modifier: Modifier = Modifier) {
                         destination.first * gridSizeDp.toPx()
                     )
                 )
-                Log.d(
-                    "DestinationPosition",
-                    "Destination tile at: ${destination.second * gridSizeDp.toPx()}, ${destination.first * gridSizeDp.toPx()}"
-                )
-
             }
             Image(
                 painter = icon,
